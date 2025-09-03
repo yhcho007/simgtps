@@ -1,4 +1,7 @@
-import os
+'''
+usage :
+uvicorn main_codegemma:app --host 0.0.0.0 --port 8125 --reload
+'''
 from typing import Dict, Any
 
 from fastapi import FastAPI
@@ -7,7 +10,7 @@ from langchain_community.llms import LlamaCpp
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_core.tools import tool
-from langchain_community.chat_models import ChatGoogleGenerativeAI
+#from langchain_community.chat_models import ChatGoogleGenerativeAI
 from langchain.agents import create_react_agent
 from langchain import hub
 
@@ -29,7 +32,7 @@ tools = [get_python_documentation]
 
 # --- 2. Language Model (LLM) Setup ---
 # Set the path to your downloaded CodeGemma GGUF file.
-model_path = "다운로드한/모델/파일/경로/codegemma-2b-it-f16.gguf"
+model_path = "./gemma-2-2b-it.F16.gguf"
 
 llm = LlamaCpp(
     model_path=model_path,
