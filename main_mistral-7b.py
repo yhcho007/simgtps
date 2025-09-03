@@ -1,12 +1,19 @@
-import os
+'''
+
+실행:
+uvicorn main_mistral-7b:app --reload
+uvicorn main_mistral-7b:app --host 0.0.0.0 --port 8125 --reload
+'''
 from typing import Dict, Any
 
 from fastapi import FastAPI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.agents import AgentExecutor, create_react_agent #create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain_community.llms import LlamaCpp # GGUF 모델을 위한 라이브러리
 from dotenv import load_dotenv
+from langchain import hub
+
 
 # .env 파일에서 환경 변수를 불러옵니다.
 load_dotenv()
@@ -31,7 +38,8 @@ tools = [create_schedule]
 # --- 2. 언어 모델(LLM)과 프롬프트 설정 (Mistral-7B 사용) ---
 # Hugging Face Hub에서 "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"와 같은
 # GGUF 형식 파일을 다운로드하여 경로를 지정합니다.
-model_path = "다운로드한/모델/파일/경로/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+# Model file is in the same directory as main.py
+model_path = "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
 
 # LlamaCpp 모델을 초기화합니다.
 llm = LlamaCpp(
@@ -41,6 +49,7 @@ llm = LlamaCpp(
     verbose=True,
     temperature=0.7
 )
+
 
 # 에이전트의 역할을 정의하는 시스템 프롬프트를 작성합니다.
 system_prompt = (
@@ -55,9 +64,13 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# --- 3. 에이전트 생성 및 실행기 설정 ---
-# 이 부분은 이전 코드와 동일합니다.
-agent = create_tool_calling_agent(llm, tools, prompt)
+# --- 3. 에이전트 생성 및 실행기 설정 (React Agent 사용) ---
+# Hub에서 ReAct 프롬프트를 가져옵니다.
+# ReAct 프롬프트는 LLM이 행동(Action)과 관찰(Observation)을 통해 추론하도록 도와줍니다.
+prompt = hub.pull("hwchase17/react")
+
+# 이제 create_tool_calling_agent 대신 create_react_agent를 사용합니다.
+agent = create_react_agent(llm, tools, prompt)
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
 # --- 4. FastAPI 서버 설정 ---
@@ -80,4 +93,4 @@ async def chat_with_assistant(user_input: Dict[str, str]) -> Dict[str, Any]:
 # --- 5. 서버 실행 ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8125, reload=True)
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
