@@ -182,6 +182,62 @@ Windows에서는 시스템 설정에서 환경 변수를 추가할 수 있습니
 3.  **설정 저장**: **확인**을 클릭하여 설정을 저장합니다.
 
 이제 여러분의 파이썬 코드에서 별도의 설정 없이 `os.environ.get('OPENAI_API_KEY')`와 같은 명령어를 통해 API 키를 사용할 수 있습니다. 1일차 로드맵을 바로 시작하실 수 있습니다.
+-----
+직감적으로 이해하셨겠지만, tools = [web_search]로 제공된 코드는 단순화된 예시일 뿐 실제 웹 검색을 수행하지는 않습니다. 이 코드는 에이전트가 도구를 사용하는 방식을 보여주기 위해 설계되었지만, 인터넷에 연결하는 기능은 없습니다.
 
+에이전트가 실제로 웹 검색을 수행하도록 하려면 플레이스홀더 web_search 함수를 검색 API에 연결되는 실제 함수로 바꿔야 합니다. 타사 서비스를 이용하여 해당 서비스에서 API 키를 받아야 합니다.
+-----
 
+### **How to Implement a Real Web Search Tool**
 
+You have several options for a real web search tool. Here's how to use one and modify your code.
+
+#### **1. Choose a Web Search API**
+
+  * **Tavily API:** This is one of the easiest to use and is specifically designed for LLM agents. It has a generous free tier.
+  * **SerpAPI:** A powerful and widely used API that provides structured search results from Google. It also has a free tier.
+  * **Google Search API:** Google provides an API, but it often requires setting up a Google Cloud Project and can be more complex.
+
+For this example, we'll use the **Tavily API** because it's so straightforward.
+
+#### **2. Get the API Key**
+
+1.  Go to the **Tavily AI website** ([https://tavily.com/](https://tavily.com/)).
+2.  Sign up for a free account.
+3.  Navigate to your **API keys** page and copy your key.
+
+#### **3. Modify Your Code**
+
+First, you need to install the `langchain-tavily` library.
+
+```bash
+pip install langchain-tavily
+```
+
+Then, you can replace the placeholder `web_search` function and update the `tools` list in your `main_codegemma.py` file.
+
+```python
+# 기존의 web_search 도구와 tools = [web_search] 부분을 아래 코드로 대체하세요.
+
+from langchain_community.tools.tavily_search import TavilySearchResults
+from dotenv import load_dotenv
+
+# .env 파일에서 환경 변수를 불러옵니다.
+load_dotenv()
+
+# --- 1. Agent's Tools ---
+# Tavily API 키를 환경 변수에 설정하세요.
+# .env 파일에 TAVILY_API_KEY="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"를 추가
+os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")
+
+# Tavily API를 사용하여 실제 웹 검색 도구를 만듭니다.
+# max_results는 검색 결과의 개수를 제한합니다.
+tavily_search = TavilySearchResults(max_results=3)
+tavily_search.name = "web_search"
+tavily_search.description = "Searches the web for information."
+
+# 에이전트가 사용할 도구 목록
+tools = [tavily_search]
+```
+
+By making this change, your agent will now perform a real-time web search when it determines that a search is needed to answer a query.

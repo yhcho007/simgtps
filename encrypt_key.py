@@ -30,3 +30,4 @@ with open('my.yml', 'w') as file:
     yaml.dump(data, file)
 
 print("API key encrypted and saved to my.yml successfully.")
+
