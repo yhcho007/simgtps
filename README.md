@@ -227,7 +227,6 @@ load_dotenv()
 
 # --- 1. Agent's Tools ---
 # Tavily API 키를 환경 변수에 설정하세요.
-# .env 파일에 TAVILY_API_KEY="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"를 추가
 os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")
 
 # Tavily API를 사용하여 실제 웹 검색 도구를 만듭니다.
