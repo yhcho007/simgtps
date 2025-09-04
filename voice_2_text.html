@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>화자별 음성 기록기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        #transcript {
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl text-center">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">화자별 실시간 음성 기록기</h1>
+        <p class="mb-6 text-gray-600">마이크 입력을 서버로 전송하고, Google Cloud API가 화자를 구분하여 기록합니다.</p>
+
+        <div class="mb-8">
+            <button id="startButton" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <span id="startText">시작</span>
+            </button>
+        </div>
+
+        <div id="outputBox" class="bg-gray-100 p-6 rounded-lg text-left break-words overflow-auto h-96">
+            <p id="transcript" class="text-gray-700 leading-relaxed"></p>
+            <p id="interimTranscript" class="text-gray-400 leading-relaxed italic"></p>
+        </div>
+
+        <div id="statusMessage" class="mt-4 text-red-500 font-medium hidden"></div>
+
+    </div>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const startText = document.getElementById('startText');
+        const transcriptElement = document.getElementById('transcript');
+        const interimTranscriptElement = document.getElementById('interimTranscript');
+        const statusMessage = document.getElementById('statusMessage');
+
+        let isRecording = false;
+        let audioContext;
+        let mediaStreamSource;
+        let websocket;
+
+        // WebSocket 서버 주소 (서버가 실행되는 곳의 IP 주소와 포트)
+        const websocket_url = 'ws://localhost:8765';
+
+        // 녹음 시작/중지
+        startButton.addEventListener('click', async () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        async function startRecording() {
+            try {
+                // 마이크 접근 권한 요청
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                mediaStreamSource = audioContext.createMediaStreamSource(stream);
+
+                // WebSocket 연결
+                websocket = new WebSocket(websocket_url);
+
+                websocket.onopen = () => {
+                    isRecording = true;
+                    startText.textContent = '녹음 중...';
+                    startButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    startButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                    statusMessage.classList.add('hidden');
+                    console.log('Connected to WebSocket server.');
+                };
+
+                websocket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    const isFinal = data.is_final;
+                    const transcriptParts = data.transcript;
+
+                    let newText = '';
+                    transcriptParts.forEach(part => {
+                        // 화자 태그를 A, B, C...로 변환
+                        const speakerInitial = String.fromCharCode(64 + part.speaker_tag);
+                        newText += `\n${speakerInitial}: ${part.text}`;
+                    });
+
+                    if (isFinal) {
+                        transcriptElement.textContent += newText;
+                        interimTranscriptElement.textContent = '';
+                    } else {
+                        interimTranscriptElement.textContent = newText;
+                    }
+                };
+
+                websocket.onclose = () => {
+                    stopRecording();
+                    console.log('Disconnected from WebSocket server.');
+                };
+
+                websocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    statusMessage.textContent = '서버 연결에 실패했습니다. Python 서버가 실행 중인지 확인하세요.';
+                    statusMessage.classList.remove('hidden');
+                    stopRecording();
+                };
+
+                // 오디오 데이터를 서버로 전송
+                const processor = audioContext.createScriptProcessor(1024, 1, 1);
+                processor.onaudioprocess = (event) => {
+                    if (websocket.readyState === WebSocket.OPEN) {
+                        const inputData = event.inputBuffer.getChannelData(0);
+                        // Google API에 필요한 16-bit PCM으로 변환
+                        const data_16bit = new Int16Array(inputData.length);
+                        for (let i = 0; i < inputData.length; i++) {
+                            data_16bit[i] = inputData[i] * 32767;
+                        }
+                        websocket.send(data_16bit.buffer);
+                    }
+                };
+                mediaStreamSource.connect(processor);
+                processor.connect(audioContext.destination);
+
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                statusMessage.textContent = '마이크 접근에 실패했습니다. 권한을 확인해주세요.';
+                statusMessage.classList.remove('hidden');
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            startText.textContent = '시작';
+            startButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            startButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.close();
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+            interimTranscriptElement.textContent = '';
+        }
+    </script>
+</body>
+</html>
