@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+requests
+langchain
+langchain-embeddings
+langchain-vectorstores
+chromadb
+sentence-transformers
+transformers
+langchain-community
+langchain-huggingface
