@@ -1333,5 +1333,446 @@ if __name__ == "__main__":
 
 ---
 
-원하시면, 이 스크립트에서 **LoRA 가중치 없이도 (즉 base\_model만) 바로 실행**되도록 fallback 처리도 추가해드릴까요?
+좋은 요청이에요 🙌 한국어는 **띄어쓰기·조사·어미** 구조 때문에 영어식 단순 `split(" ")` 이나 일정 길이 자르기만 쓰면 의미가 쉽게 깨집니다.
+따라서 **형태소 단위 또는 문장 단위 chunking → 토큰 단위 보정 → 최대 길이 제한** 방식이 가장 안전합니다.
+
+아래는 `inference_demo.py` 를 **한국어 친화적인 chunking 함수**를 포함하도록 수정한 버전입니다.
+
+---
+
+## ✅ 수정된 inference\_demo.py (한국어 chunking 포함)
+
+```python
+# finetune/inference_demo.py
+import re
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel
+
+def guess_target_modules(model_name: str):
+    """
+    모델 이름에 따라 LoRA target_modules 추천
+    """
+    name = model_name.lower()
+    if "llama" in name:
+        return ["q_proj", "k_proj", "v_proj", "o_proj"]
+    elif "mistral" in name:
+        return ["q_proj", "k_proj", "v_proj", "o_proj"]
+    elif "gptj" in name or "gpt-j" in name:
+        return ["q_proj", "v_proj"]
+    elif "gptneo" in name or "neo" in name:
+        return ["q_proj", "v_proj"]
+    elif "bloom" in name:
+        return ["query_key_value"]
+    else:
+        return ["q_proj", "v_proj"]
+
+# -------------------------------
+# ✅ 한국어 친화적 chunking
+# -------------------------------
+def chunk_korean_text(text: str, max_chars: int = 200):
+    """
+    한국어 텍스트를 의미 단위로 chunking
+    1) 문장 단위 분리 (마침표/물음표/느낌표 + 줄바꿈 기준)
+    2) 긴 문장은 일정 길이(max_chars)로 잘라냄
+    """
+    # 문장 단위 split
+    sentences = re.split(r'(?<=[.!?])\s+|\n+', text.strip())
+    chunks, current = [], ""
+
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        # 현재 문장까지 합쳤을 때 길이가 허용 범위 이내면 이어붙임
+        if len(current) + len(sent) <= max_chars:
+            current += (" " if current else "") + sent
+        else:
+            if current:
+                chunks.append(current)
+            # 문장이 너무 긴 경우 잘라냄
+            while len(sent) > max_chars:
+                chunks.append(sent[:max_chars])
+                sent = sent[max_chars:]
+            current = sent
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+# -------------------------------
+# 모델 로드 & 추론
+# -------------------------------
+def load_model(base_model: str, lora_path: str = None, device: str = None):
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Loading base model: {base_model} (device={device})")
+    tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True)
+    model = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
+
+    if lora_path:
+        print(f"Applying LoRA weights from {lora_path}")
+        model = PeftModel.from_pretrained(model, lora_path)
+        print("LoRA target_modules (추정):", guess_target_modules(base_model))
+
+    return tokenizer, model
+
+def infer(prompt: str, tokenizer, model, max_new_tokens: int = 256):
+    # ✅ 입력 프롬프트도 chunk 단위로 나눠서 처리 (큰 텍스트 지원)
+    chunks = chunk_korean_text(prompt, max_chars=200)
+    responses = []
+
+    for chunk in chunks:
+        inputs = tokenizer(chunk, return_tensors="pt").to(model.device)
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                temperature=0.2,
+            )
+        resp = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        responses.append(resp)
+
+    return "\n".join(responses)
+
+if __name__ == "__main__":
+    BASE_MODEL = "MLP-KTLim/llama-3-Korean-SFT-1.8B"
+    LORA_WEIGHTS = "./finetune/lora_adapter"  # 없으면 None
+
+    tokenizer, model = load_model(BASE_MODEL, LORA_WEIGHTS)
+    
+    while True:
+        q = input("\n질문을 입력하세요 (종료: exit): ")
+        if q.strip().lower() in ["exit", "quit"]:
+            break
+        result = infer(q, tokenizer, model)
+        print("\n=== 응답 ===")
+        print(result)
+```
+
+---
+
+## 🚀 개선된 점
+
+* `chunk_korean_text()`
+
+  * **문장 단위로 우선 분리** (`.`, `?`, `!`, 줄바꿈 기준) → 의미 손상 최소화
+  * 너무 긴 문장은 `max_chars` 기준으로 **안전하게 분할**
+* `infer()`
+
+  * 긴 프롬프트도 자동으로 chunking → 모델 입력 제한/메모리 문제 완화
+  * 각 chunk별 응답을 이어붙여 최종 출력
+
+---
+
+👉 여기서 `max_chars=200` 은 기본 예시입니다. 모델별 token 길이에 맞춰 300\~500 정도로 조정하면 더 효율적일 수 있어요.
+
+---
+
+좋은 질문이에요 👍
+맞아요, **chunking 처리 위치**는 보통 아키텍처 설계에서 결정합니다.
+
+---
+
+## 🔎 Chunking 처리가 필요한 이유
+
+* LLM 입력은 **토큰 길이 제한**이 있어서 긴 데이터(예: 고객 재무정보, 긴 문서)를 그대로 넣으면 **에러**가 납니다.
+* 따라서 긴 텍스트는 **chunking → 벡터화 → 검색(RAG) → LLM 입력** 과정으로 잘라서 써야 합니다.
+
+---
+
+## 📌 Chunking 처리 위치 (일반적인 패턴)
+
+1. **서버(API 계층)에서 chunking**
+
+   * 클라이언트가 긴 텍스트 요청을 보냄 → 서버에서 chunking → LLM/VectorDB에 전달
+   * 장점: 서버에서 일관되게 처리 가능, 클라이언트 단순해짐
+   * 단점: 서버 부담 증가
+
+2. **사전처리(데이터 적재 단계)에서 chunking**
+
+   * 고객 문서/데이터를 VectorDB에 저장하기 전에 chunking
+   * 질의 시에는 이미 chunk 단위로 저장된 벡터에서 검색
+   * 장점: 검색 최적화, 실시간 속도 향상
+   * 단점: 저장 전에 전처리 필요
+
+3. **클라이언트 측 chunking (비권장)**
+
+   * 모바일/웹에서 chunking 후 API로 보냄
+   * 장점: 서버 부하 분산
+   * 단점: 구현 복잡, 클라이언트별 결과 일관성 깨짐
+
+---
+
+## 🔧 권장 방식 (너 프로젝트 기준)
+
+* 지금 구조(`app.py + agent.py + models.py + tools.py`)는 **RAG + LLM 호출 서버형 에이전트**야.
+* 따라서 **chunking은 서버(agent/models) 계층에서 처리하는 게 표준**이야.
+
+  * 문서를 VectorStore에 저장할 때 → chunking 후 Embedding
+  * 긴 프롬프트로 LLM 호출할 때 → chunking 후 잘라서 입력
+
+---
+
+## ✅ 제안
+
+* 내가 만든 `chunk_korean_text()` 같은 유틸은
+
+  * **VectorStore 저장 시 (models.py → VectorStore.add)**
+  * **LLM 호출 시 (agent.py → self.llm.generate)**
+    두 군데에서 쓰이는 게 가장 좋아.
+
+---
+
+👉 원한다면, 내가 `chunk_korean_text()` 를 **서버(app.py, agent.py, models.py)** 쪽으로 옮겨서,
+
+* **데이터 저장 시 자동 chunking**
+* **분석/추천 API 호출 시 자동 chunking**
+
+까지 반영된 버전을 만들어줄 수 있어.
+
+---
+
+좋습니다 😎 그러면 chunking 처리를 **서버 전체 파이프라인**에 통합하는 방식으로 구조를 재정리할게요.
+
+* 목적: **VectorStore 저장 시 자동 chunking + LLM 호출 시 긴 입력 자동 chunking**
+* 적용 파일: `models.py` (VectorStore), `agent.py` (LLM 호출), `app.py` (API 그대로)
+* chunking 함수: 한국어 문장 기반, 의미 훼손 최소화
+
+---
+
+## 1️⃣ models.py (VectorStore에 chunking 적용)
+
+```python
+# models.py
+import os
+from typing import List
+from dotenv import load_dotenv
+load_dotenv()
+
+import torch
+from sentence_transformers import SentenceTransformer
+from chromadb import Client
+from chromadb.config import Settings
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel
+
+# ------------------------------
+# ✅ 한국어 Chunking 유틸
+# ------------------------------
+import re
+def chunk_korean_text(text: str, max_chars: int = 200) -> List[str]:
+    sentences = re.split(r'(?<=[.!?])\s+|\n+', text.strip())
+    chunks, current = [], ""
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        if len(current) + len(sent) <= max_chars:
+            current += (" " if current else "") + sent
+        else:
+            if current:
+                chunks.append(current)
+            while len(sent) > max_chars:
+                chunks.append(sent[:max_chars])
+                sent = sent[max_chars:]
+            current = sent
+    if current:
+        chunks.append(current)
+    return chunks
+
+# ------------------------------
+# LLM Wrapper
+# ------------------------------
+class LocalLLM:
+    def __init__(self, base_model: str, lora_weights: str = None):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.base_model = base_model
+        self.lora_weights = lora_weights
+        self.tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True)
+        model = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
+        if lora_weights:
+            model = PeftModel.from_pretrained(model, lora_weights)
+        self.model = model
+
+    def generate(self, prompt: str, max_new_tokens: int = 256):
+        # 긴 프롬프트 chunking
+        chunks = chunk_korean_text(prompt, max_chars=200)
+        responses = []
+        for c in chunks:
+            inputs = self.tokenizer(c, return_tensors="pt").to(self.model.device)
+            with torch.no_grad():
+                out = self.model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+            responses.append(self.tokenizer.decode(out[0], skip_special_tokens=True))
+        return "\n".join(responses)
+
+# ------------------------------
+# Embedding + VectorStore
+# ------------------------------
+class Embedder:
+    def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
+        self.model = SentenceTransformer(model_name)
+
+    def encode(self, texts: List[str]):
+        return self.model.encode(texts, show_progress_bar=False).tolist()
+
+class VectorStore:
+    def __init__(self, persist_directory: str = './chroma_db'):
+        settings = Settings(chroma_db_impl="duckdb+parquet", persist_directory=persist_directory)
+        self.client = Client(settings=settings)
+        self.col = self.client.get_or_create_collection("financial_memory")
+
+    def add(self, ids, metadatas, documents):
+        """
+        자동 chunking + embedding
+        """
+        # documents: List[str]
+        chunked_docs, chunked_ids, chunked_meta = [], [], []
+        for i, doc in enumerate(documents):
+            chunks = chunk_korean_text(doc)
+            chunked_docs.extend(chunks)
+            chunked_ids.extend([ids[i]]*len(chunks))
+            chunked_meta.extend([metadatas[i]]*len(chunks))
+
+        embedder = Embedder()
+        embeddings = embedder.encode(chunked_docs)
+        self.col.add(ids=chunked_ids, metadatas=chunked_meta, embeddings=embeddings, documents=chunked_docs)
+
+    def query(self, embedding, n_results=5):
+        return self.col.query(query_embeddings=[embedding], n_results=n_results)
+```
+
+---
+
+## 2️⃣ agent.py (LLM 호출 시 chunking 적용)
+
+```python
+# agent.py
+from models import LocalLLM, VectorStore
+from tools import analyze_debts, propose_growth
+import uuid
+
+class FinancialAgent:
+    def __init__(self):
+        self.llm = LocalLLM(base_model="MLP-KTLim/llama-3-Korean-SFT-1.8B",
+                            lora_weights="./finetune/lora_adapter")
+        self.vs = VectorStore()
+
+    # --------------------------
+    # 고객 메모리 저장
+    # --------------------------
+    def _save_customer_memory(self, customer_id: str, text: str):
+        doc_id = str(uuid.uuid4())
+        metadata = {"customer_id": customer_id}
+        self.vs.add([doc_id], [metadata], [text])
+
+    # --------------------------
+    # 부채 분석
+    # --------------------------
+    def handle_debt_analysis(self, data: dict):
+        # 기존 분석
+        result = analyze_debts(data.get('debts', []),
+                               income_monthly=data.get('income_monthly'),
+                               expenses_monthly=data.get('expenses_monthly'))
+        # 분석 요약 텍스트
+        summary = f"부채 분석 결과: 총 {result['total_balance']}원, 평균이자율 {result['average_interest_rate']}%, 우선순위 {result['priority_list']}"
+        # 메모리 저장
+        self._save_customer_memory(data['customer_id'], summary)
+        # LLM 응답 (chunking 포함)
+        llm_response = self.llm.generate(summary)
+        result['llm_response'] = llm_response
+        return result
+
+    # --------------------------
+    # 증식 계획
+    # --------------------------
+    def handle_growth_proposal(self, data: dict):
+        result = propose_growth(data.get('balance',0),
+                                risk_profile=data.get('risk_profile','moderate'),
+                                horizon_years=data.get('horizon_years',3))
+        summary = f"증식 계획 요약: {result['projected_balance']}원 예상, {result['allocation']}"
+        self._save_customer_memory(data['customer_id'], summary)
+        llm_response = self.llm.generate(summary)
+        result['llm_response'] = llm_response
+        return result
+```
+
+---
+
+## 3️⃣ app.py
+
+* 기존 API 구조 그대로 사용
+* agent 호출 시 **자동 chunking + LLM 응답** 포함됨
+* 별도 수정 필요 없음
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List
+from agent import FinancialAgent
+
+app = FastAPI(title="Korean Financial Agent")
+agent = FinancialAgent()
+
+class DebtItem(BaseModel):
+    creditor: str
+    balance: float
+    monthly_payment: Optional[float] = None
+    interest_rate_annual: Optional[float] = None
+
+class DebtRequest(BaseModel):
+    customer_id: str
+    debts: List[DebtItem]
+    income_monthly: Optional[float] = None
+    expenses_monthly: Optional[float] = None
+
+class GrowthRequest(BaseModel):
+    customer_id: str
+    balance: float
+    risk_profile: Optional[str] = "moderate"
+    horizon_years: Optional[int] = 3
+
+@app.post('/analyze_debt')
+async def analyze_debt(req: DebtRequest):
+    try:
+        result = agent.handle_debt_analysis(req.dict())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post('/propose_growth')
+async def propose_growth(req: GrowthRequest):
+    try:
+        result = agent.handle_growth_proposal(req.dict())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get('/')
+async def root():
+    return {"status": "Korean Financial Agent running"}
+```
+
+---
+
+## ✅ 장점
+
+1. **VectorStore 저장 시 자동 chunking + embedding** → 긴 문서도 안전하게 저장
+2. **LLM 호출 시 자동 chunking** → 긴 프롬프트도 의미 훼손 없이 처리
+3. **한국어 친화적 문장 단위 chunking** → 의미 손상 최소화
+4. API 호출 구조 그대로 유지 → 기존 FastAPI 연동 문제 없음
+
+---
+
+원하면 제가 이 구조를 **완전히 실행 가능한 zip-ready 형태**로 만들어서,
+
+* `finetune/` + `models.py` + `agent.py` + `app.py`
+* 필요한 환경변수 `.env`, requirements.txt 포함
+
+한 번에 배포/실행 가능한 형태로 만들어 드릴 수도 있습니다.
+
+혹시 그렇게 해드릴까요?
+
+
+
 
