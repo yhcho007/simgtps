@@ -1,0 +1,21 @@
+fastapi
+uvicorn[standard]
+pydantic
+openai
+chromadb
+sentence-transformers
+langchain
+httpx
+python-multipart
+python-dotenv
+numpy
+scikit-learn
+pandas
+# Finetune 관련 (추가)
+transformers>=4.33
+datasets
+accelerate>=0.20
+peft
+bitsandbytes         # 4-bit 양자화 사용 시
+safetensors          # 안전한 저장 포맷
+torch                # CUDA 지원 빌드 권장 (pip/conda에서)
