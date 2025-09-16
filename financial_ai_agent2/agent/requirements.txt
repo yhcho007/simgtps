@@ -5,6 +5,3 @@ faiss-cpu
 transformers
 torch
 datasets
-peft
-accelerate
-bitsandbytes

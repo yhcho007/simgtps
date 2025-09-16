@@ -1,48 +1,37 @@
-# AI Finance Agent Demo v3 — Full Usage Guide
+# AI Finance Agent Demo v4 (CPU-friendly)
 
-This distribution includes:
-- Frontend (Next.js) demo
-- Gateway (Express) proxy
-- Agent (FastAPI) with ingestion, chat, training trigger endpoints
-- Trainer scripts supporting KoAlpaca and Llama-2-ko model types using HuggingFace + PEFT (LoRA)
-- GPU-enabled Dockerfile (nvidia/cuda) and docker-compose.gpu.yml
-- Pipeline automation script `generate_train_jsonl.py` to create RAG+SFT JSONL training data from document corpus
+This v4 package configures the system to support CPU-only training and inference for small models.
 
-Prerequisites
-- GPU server with NVIDIA drivers and Docker + nvidia-docker runtime (for GPU containers)
-- Python 3.10+ for local running
-- Adequate disk and memory for model downloads
+Key changes:
+- `agent/trainer_cpu.py`: CPU-friendly trainer using HuggingFace Trainer. Select preset `gpt2` or `ko_small`.
+- `agent/app.py`: invokes `trainer_cpu.py` for training jobs (non-blocking).
+- `agent/generate_train_jsonl.py`: pipeline to build RAG+SFT training JSONL.
+- Docker setup updated to CPU-only images (no GPU required).
 
-Quick local run (CPU / small models)
-1. Create virtualenv and install:
-   ```bash
+Quick start (local, CPU):
+1. Create venv and install:
+   ```
    cd agent
    python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Prepare training data:
-   ```bash
-   python generate_train_jsonl.py --docs agent/data/raw_texts.jsonl --questions demo/questions.jsonl --output demo/generated_train.jsonl --top_k 3
+2. Generate training data:
    ```
-3. Train (example using a small KoAlpaca-style base):
-   ```bash
-   python trainer.py --model_type koalpaca --base_model username/koalpaca-small --train_file demo/generated_train.jsonl --output_dir models/lora_out --epochs 1 --per_device_batch_size 1
+   python generate_train_jsonl.py --docs agent/data/raw_texts.jsonl --questions demo/questions.jsonl --output demo/generated_train_cpu.jsonl --top_k 3
    ```
-   Adjust `--base_model` to a real model ID you have access to.
+3. Train (example):
+   ```
+   python trainer_cpu.py --model_preset gpt2 --train_file demo/generated_train_cpu.jsonl --output_dir models/cpu_out --epochs 1 --per_device_batch_size 1
+   ```
+4. Start agent:
+   ```
+   uvicorn app:app --reload --port 8000
+   ```
+5. Use frontend or curl to call `/chat` and `/train`.
 
-Docker (GPU)
-1. Build and run with nvidia runtime:
-   ```bash
-   docker compose -f docker-compose.gpu.yml up --build
-   ```
-2. Trigger training via API:
-   ```bash
-   curl -X POST http://localhost:8000/train -H "Content-Type: application/json" -d '{"base_model":"facebook/opt-1.3b","train_file":"demo/generated_train.jsonl","output_dir":"models/lora_out","epochs":1,"batch_size":1}'
-   ```
-
-Notes and safety
-- Always remove PII before training. This demo does NOT automatically mask PII.
-- Training large models requires significant GPU memory and proper accelerate config.
-- This code is provided as a PoC. Harden for production: add authentication, logging, monitoring, retry/backoff, and secure storage for models.
+Notes:
+- CPU training is slow; use very small datasets and small base models.
+- For Korean-specific models, `skt/kogpt2-base-v2` may be used but check tokenizer compatibility.
+- Remove personal data before training.
 
