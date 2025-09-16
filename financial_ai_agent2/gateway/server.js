@@ -1,0 +1,1 @@
+const express = require('express'); const {createProxyMiddleware} = require('http-proxy-middleware'); const path = require('path'); const app = express(); app.use(express.static(path.join(__dirname,'../frontend'))); app.use('/api', createProxyMiddleware({ target: 'http://localhost:8000', changeOrigin:true })); app.listen(3000,()=>console.log('Gateway http://localhost:3000'));
