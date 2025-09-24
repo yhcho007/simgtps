@@ -1,7 +1,7 @@
 @echo off
 echo "Starting AI Agent Backend on Windows..."
 
-:: 1. Milvus Standalone Docker Desktop으로 실행 (최소 Python 3.11 이상 권장) [【8】](https://milvus.io/ko/blog/ai-agents-vs-workflows-why-80-need-simple-automation.md)
+REM ":: 1. Milvus Standalone Docker Desktop으로 실행 (최소 Python 3.11 이상 권장) [【8】](https://milvus.io/ko/blog/ai-agents-vs-workflows-why-80-need-simple-automation.md)"
 echo "Deploying Milvus Vector Database with Docker Desktop..."
 echo "Please ensure Docker Desktop is running."
 echo "If milvus-standalone-docker-compose.yml is not present, it will be downloaded."
@@ -15,16 +15,16 @@ timeout /t 10 /nobreak > NUL :: Milvus가 완전히 시작될 때까지 기다�
 echo "Verifying Milvus service status..."
 docker ps -a | findstr milvus
 
-:: 2. Python 가상 환경 설정 및 종속성 설치
+REM ":: 2. Python 가상 환경 설정 및 종속성 설치"
 echo "Setting up Python virtual environment and installing dependencies..."
 cd backend
 python -m venv venv
 call venv\Scripts\activate
 pip install -r requirements.txt
 
-:: 3. FastAPI 애플리케이션 실행
+REM ":: 3. FastAPI 애플리케이션 실행"
 echo "Running FastAPI application..."
-:: .env 파일이 없으면 .env.example을 복사하도록 유도
+REM ":: .env 파일이 없으면 .env.example을 복사하도록 유도"
 IF NOT EXIST .env (
     echo "Warning: .env file not found. Please create one by copying .env.example and fill in OPENAI_API_KEY."
     copy .env.example .env
