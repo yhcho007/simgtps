@@ -1,9 +1,14 @@
 fastapi
 uvicorn
 pymilvus
-openai # OpenAI API를 사용할 수도 있으므로 유지
+openai
 python-dotenv
 pydantic-settings
-transformers # 로컬 임베딩 모델 (KoBERT 등)
-torch # 로컬 임베딩 모델
-sentence-transformers # 로컬 임베딩 모델 (선택사항, 더 쉬운 사용법 제공)
+transformers
+torch
+sentence-transformers
+chromadb # ChromaDB
+httpx # Google OAuth2 API 호출
+python-jose[cryptography] # JWT 토큰
+psycopg2-binary # For PostgreSQL connection
+asyncio-throttle # For rate limiting (optional but good for LLM calls)
