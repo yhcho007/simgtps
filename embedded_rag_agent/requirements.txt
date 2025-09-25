@@ -1,0 +1,9 @@
+torch
+transformers
+peft
+accelerate
+datasets
+pdfminer.six
+pytesseract
+Pillow
+pymilvus

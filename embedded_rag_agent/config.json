@@ -1,0 +1,7 @@
+{
+  "llm_backend": "transformers",
+  "device": "cpu",
+  "model_name": "beomi/KoAlpaca-Polyglot-12.8B",
+  "milvus_host": "localhost",
+  "milvus_port": 19530
+}

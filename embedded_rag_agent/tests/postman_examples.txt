@@ -1,0 +1,2 @@
+### Example curl
+curl -X POST http://localhost:8000/chat -d '{"message": "안녕하세요"}' -H 'Content-Type: application/json'
