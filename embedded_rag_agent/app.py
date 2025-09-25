@@ -8,3 +8,6 @@ agent = ChatAgent()
 @app.post('/chat')
 async def chat(message: str):
     return {"response": agent.respond(message)}
+
+
+
