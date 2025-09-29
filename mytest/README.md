@@ -488,3 +488,173 @@ npm start
 [8] javascript.plainenglish.io - How To Build AI Chatbot Using React + Node.js (https://javascript.plainenglish.io/how-to-build-ai-chatbot-using-react-node-js-a32f09112025)
 [9] www.freecodecamp.org - How to Create a React Chatbot – a Step by Step Guide (https://www.freecodecamp.org/news/how-to-create-a-react-chatbot/)
 [10] www.freecodecamp.org - How to Create a React Chatbot – a Step by Step Guide (https://www.freecodecamp.org/news/how-to-create-a-react-chatbot/)
+
+---
+어이구 조윤희4305님! ㅠㅠ 서버가 에러 메시지만 띄우고 안 뜬다구요? 흐읍... 이게 진짜 개발하다 보면 가장 답답한 순간 중 하나죠. 🥹 혹시 터미널에 뜨는 **정확한 에러 메시지**가 있다면 저한테 복사해서 알려주실 수 있을까요? 에러 메시지를 봐야 제가 조윤희4305님 서버의 아픈 곳을 정확히 콕! 집어 드릴 수 있거든요! 🚑
+
+일단 에러는 잠시 접어두고, 조윤희4305님의 말씀대로 OpenAI API 키를 쓰지 않고 **로컬 경량 모델**을 사용해서 챗봇 백엔드를 만드는 방법으로 바꿔볼게요! 이 방법이 개발 비용 부담도 줄고, 조윤희4305님이 AI 에이전트 개발 경험을 쌓는 데 훨씬 더 도움이 될 거예요! 진짜 멋진 아이디어예요! 🤩
+
+**✨ 로컬 경량 AI 모델을 활용한 챗봇 백엔드 만들기 ✨**
+
+우리는 **Ollama (올라마)**라는 아주 핫한 도구를 사용할 거예요! Ollama는 로컬 컴퓨터에서 대규모 언어 모델(LLM)을 아주 쉽게 실행할 수 있게 해주는 친구예요 [2] [3] [4] [5]। 덕분에 우리는 인터넷 없이도, 비용 걱정 없이도 AI 모델과 대화할 수 있죠!
+
+---
+
+### **STEP 0: Ollama 설치 및 로컬 모델 준비**
+
+1.  **Ollama 설치:**
+    *   [Ollama 공식 웹사이트](https://ollama.com/) 로 접속해서 조윤희4305님의 운영체제에 맞는 버전을 다운로드하고 설치해주세요. (맥, 리눅스, 윈도우 프리뷰 버전까지 지원해요! [2] [3])
+    *   설치가 끝나면 터미널(또는 명령 프롬프트)을 열고 `ollama --version`을 입력해서 설치가 잘 됐는지 확인해보세요.
+2.  **로컬 모델 다운로드:**
+    *   Ollama는 다양한 모델을 지원하는데, 처음에는 가벼운 모델부터 시작하는 게 좋아요. 저는 **`llama2`** 나 **`phi3`** 같은 모델을 추천해요. 가볍고 빠르면서 성능도 꽤 괜찮아요.
+    *   터미널에 다음 명령어를 입력해서 모델을 다운로드하고 실행해 보세요.
+        ```bash
+        ollama run llama2
+        # 또는
+        ollama run phi3
+        ```
+        이 명령어를 입력하면 모델이 자동으로 다운로드되고 실행될 거예요. 다운로드에는 시간이 좀 걸릴 수 있어요. "llama2" 또는 "phi3" 프롬프트가 뜨면 성공이에요. 여기서 직접 AI랑 대화해볼 수 있답니다. (예: "안녕?" 입력 후 엔터)
+    *   모델이 실행 중인 상태에서 `Ctrl + D`를 누르면 대화 모드에서 나갈 수 있어요. **Ollama가 로컬 API 서버로 작동하려면 백그라운드에서 실행되고 있어야 해요.** (보통 Ollama 앱을 설치하면 자동으로 백그라운드에서 실행되지만, 만약을 위해 확인해주세요.)
+    *   Ollama는 기본적으로 `http://localhost:11434` 포트에서 API를 제공해요 [1].
+
+---
+
+### **STEP 1: 백엔드 수정 (Node.js)**
+
+이제 지난번에 만들었던 `server/server.js` 파일을 수정해서 OpenAI API 대신 Ollama 로컬 API를 호출하도록 변경할 거예요!
+
+#### **1. 필요한 라이브러리 추가 설치 (`axios`)**
+
+HTTP 요청을 더 쉽고 안정적으로 보내기 위해 `axios` 라이브러리를 설치할 거예요. `server` 폴더에서 터미널에 다음을 입력해주세요.
+
+```bash
+cd my-chatbot-app/server
+npm install axios
+```
+
+#### **2. 백엔드 코드 수정 (`server/server.js`)**
+
+`server` 폴더 안에 있는 `server.js` 파일을 열고, 아래와 같이 수정해주세요.
+
+```javascript
+// server/server.js
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios'); // axios 라이브러리 불러오기 (OpenAI 대신 사용할 거예요)
+// const { OpenAI } = require('openai'); // ❌ OpenAI 라이브러리는 이제 필요 없어요! 주석 처리하거나 지워주세요.
+// require('dotenv').config(); // ❌ .env 파일도 이제 필요 없어요! 주석 처리하거나 지워주세요.
+
+const app = express();
+const port = 5000;
+
+app.use(cors());
+app.use(express.json());
+
+// ❌ OpenAI API 키 설정 관련 부분도 이제 필요 없어요! 주석 처리하거나 지워주세요.
+// const openai = new OpenAI({
+//     apiKey: process.env.OPENAI_API_KEY,
+// });
+
+// 테스트용 루트 경로 API (그대로 두셔도 돼요)
+app.get('/', (req, res) => {
+    res.send('Chatbot Backend is running with Ollama!');
+});
+
+// 챗봇과의 대화를 처리할 API 엔드포인트
+app.post('/api/chat', async (req, res) => {
+    const userMessage = req.body.message;
+    console.log(`Received message: ${userMessage}`);
+
+    try {
+        // ✨ Ollama 로컬 API 호출!
+        const ollamaResponse = await axios.post('http://localhost:11434/api/chat', { // Ollama API 기본 주소
+            model: 'llama2', // ✨ 여기를 조윤희4305님이 설치한 모델 이름으로 변경해주세요! (예: 'phi3')
+            messages: [{ role: 'user', content: userMessage }],
+            stream: false, // 실시간 스트리밍 대신 최종 답변을 한 번에 받을게요.
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const botReply = ollamaResponse.data.message.content; // Ollama 응답에서 답변 내용 추출
+        console.log(`Bot reply from Ollama: ${botReply}`);
+        res.json({ reply: botReply }); // AI의 답변을 프론트엔드로 보내줘요.
+
+    } catch (error) {
+        console.error("Error calling Ollama API:", error.message);
+        // Ollama 서버가 실행 중이 아니거나 모델을 찾을 수 없을 때의 에러 처리
+        if (error.code === 'ECONNREFUSED' || error.response?.status === 404) {
+            res.status(503).json({ reply: "죄송해요, 로컬 AI 모델(Ollama)에 연결할 수 없거나 모델을 찾을 수 없어요. Ollama 서버를 실행하고 'llama2' 모델(또는 설정한 모델)이 준비되었는지 확인해주세요. ㅠㅠ" });
+        } else {
+            res.status(500).json({ reply: `죄송해요, AI와 대화 중에 오류가 발생했어요. ${error.message}` });
+        }
+    }
+});
+
+// 서버 시작!
+app.listen(port, () => {
+    console.log(`Backend server listening at http://localhost:${port}`);
+    console.log('Ctrl + C 를 눌러 서버를 종료할 수 있습니다.');
+});
+```
+
+#### **3. 백엔드 재실행**
+
+수정된 `server` 폴더에서 터미널에 다음 명령어를 입력해서 백엔드를 다시 실행하세요.
+
+```bash
+node server.js
+```
+
+이전처럼 `Backend server listening at http://localhost:5000` 메시지가 뜨면 성공! **만약 여전히 에러가 뜬다면, 그때는 꼭 그 에러 메시지를 알려주세요!** 🙏
+
+---
+
+### **STEP 2: 프론트엔드는 그대로!**
+
+React 프론트엔드(`client` 폴더의 `App.js`와 `App.css`)는 백엔드의 `/api/chat` 엔드포인트로 메시지를 보내고, 응답을 받아오는 역할만 하기 때문에 **수정할 필요가 없어요!**
+
+`client` 폴더 경로에서 터미널에 다음 명령어를 입력해서 프론트엔드를 실행하세요.
+
+```bash
+cd my-chatbot-app/client
+npm start
+```
+
+---
+
+### **🌟 기능 확인 방법**
+
+1.  **가장 먼저! Ollama가 백그라운드에서 실행 중이고, `llama2` (또는 설정한 모델)가 다운로드되어 있는지 확인해주세요.** `ollama run llama2`를 실행했다면, 다른 터미널에서 `node server.js`를 실행하고, 또 다른 터미널에서 `npm start`를 실행해야 할 수 있어요.
+2.  백엔드 서버 (`http://localhost:5000`)와 프론트엔드 앱 (`http://localhost:3000`)이 모두 정상적으로 실행 중인지 확인합니다.
+3.  브라우저 (`http://localhost:3000`)에서 메시지를 입력하고 "보내기" 버튼을 눌러보세요!
+4.  이제 로컬 Ollama 모델이 조윤희4305님의 질문에 대답해 줄 거예요!
+
+---
+
+### **💡 추가 팁 및 참고 자료**
+
+*   **Ollama의 다양한 모델:** Ollama는 `llama2`, `phi3` 외에도 `mistral`, `gemma`, `codellama` 등 다양한 모델을 지원해요 [6]. `ollama run [모델명]`으로 쉽게 바꿔가면서 테스트해 볼 수 있어요! 특히 한국어 특화 모델 중에는 경량화된 모델들이 로컬에서 잘 돌아가는 경우가 있으니 검색해보시면 좋을 것 같아요 [7] [9] [10].
+*   **Ollama API 문서:** Ollama가 제공하는 로컬 API에 대해 더 자세히 알고 싶다면 [Ollama API 문서](https://github.com/ollama/ollama/blob/main/docs/api.md)를 참고해보세요.
+*   **`axios` 사용법:** `axios`는 Node.js 환경에서 HTTP 요청을 보내는 데 많이 쓰이는 라이브러리예요. [MDN Web Docs - Using Fetch](https://developer.mozilla.org/ko/docs/Web/API/Fetch_API/Using_Fetch)나 [Axios 공식 문서](https://axios-http.com/docs/intro)를 참고하시면 좋아요.
+*   **프론트엔드-백엔드 연동 디버깅:** 만약 에러가 난다면, 브라우저의 **개발자 도구 (F12)**를 열어서 `Console` 탭이나 `Network` 탭을 확인해 보세요. 프론트엔드에서 백엔드로 요청을 잘 보내고 있는지, 백엔드에서 어떤 응답이 오는지 확인할 수 있답니다.
+
+---
+
+조윤희4305님! 이렇게 로컬 AI 모델을 연동해서 챗봇을 만드는 과정은 AI 에이전트 개발자로서 정말 중요한 첫걸음이에요! 물론 처음이라 헤매고 에러도 나고 하겠지만, 이 과정을 통해 배우는 게 진짜 많을 거예요!
+
+다시 한번 말씀드리지만, **서버 에러가 계속 나면 꼭 에러 메시지 전문을 알려주세요!** 제가 옆에서 함께 디버깅해 드릴게요! 조윤희4305님, 화이팅이에요! 💖🚀 
+
+참고 자료 
+
+[1] www.threads.com - 오히려 이 모델들이 경량화되어 로컬에서도 한국 문화와 ... (https://www.threads.com/@choi.openai/post/DIyEYHwvoUk/%EC%98%A4%ED%9E%88%EB%A0%A4-%EC%9D%B4-%EB%AA%A8%EB%8D%B8%EB%93%A4%EC%9D%B4-%EA%B2%BD%EB%9F%89%ED%99%94%EB%90%98%EC%96%B4-%EB%A1%9C%EC%BB%AC%EC%97%90%EC%84%9C%EB%8F%84-%ED%95%9C%EA%B5%AD-%EB%AC%B8%ED%99%94%EC%99%80-%ED%95%9C%EA%B5%AD%EC%96%B4-%EC%9D%B4%ED%95%B4%EB%8A%A5%EB%A0%A5%EC%9D%B4-%EB%9B%B0%EC%96%B4%EB%82%9C-%EC%86%8C%ED%98%95%EB%AA%A8%EB%8D%B8%EC%9D%98-%EC%82%AC%EC%9A%A9%EC%9D%B4-%EA%B0%80%EB%8A%A5%ED%95%98%EB%8B%A4%EB%8A%94-%EC%A0%90%EC%97%90%EC%84%9C-%ED%94%84%EB%9D%BC%EC%9D%B4%EB%B2%84%EC%8B%9C%EA%B0%80-%EC%A4%91%EC%9A%94%ED%95%9C-%EA%B5%90%EC%9C%A1-%EC%A4%91%EC%86%8C?hl=ko)
+[2] velog.io - 로컬에서 llm 챗봇 페이지 만들기: Ollama + streamlit (https://velog.io/@boyunj0226/%EB%A1%9C%EC%BB%AC%EC%97%90%EC%84%9C-llm-%EC%B1%97%EB%B4%87-%ED%8E%98%EC%9D%B4%EC%A7%80-%EB%A7%8C%EB%93%A4%EA%B8%B0-Ollama-streamlit)
+[3] 로띠 로그 - ollama로 로컬에서 나만의 AI 챗봇 만들기 - 로띠 로그 (https://msyu1207.tistory.com/entry/ollama%EB%A1%9C-%EB%A1%9C%EC%BB%AC%EC%97%90%EC%84%9C-%EB%82%98%EB%A7%8C%EC%9D%98-AI-%EC%B1%97%EB%B4%87-%EB%A7%8C%EB%93%A4%EA%B8%B0)
+[4] toyourlight.tistory.com - Chatbox, gemini API로 로컬 챗봇 환경 구현하기 (https://toyourlight.tistory.com/130)
+[5] linguisting.tistory.com - 깡통 노트북에 가벼운 LLM 올려서 계엄사태 대비하기 (https://linguisting.tistory.com/241)
+[6] blog.naver.com - 로컬에서 모델을 실행하는 6가지 최고의 LLM 툴 (https://blog.naver.com/kayoko79/223611013257)
+[7] reasoning] 마이크로소프트의 경량 추론 모델, 온 ... - [Phi-4-mini-reasoning] 마이크로소프트의 경량 추론 모델, 온 ... (https://marcus-story.tistory.com/205)
+[8] apidog.com - 로컬에서 모델을 실행하기 위한 5가지 최고의 LLM 도구 (https://apidog.com/kr/blog/top-llm-local-tools-kr/)
+[9] www.reddit.com - 왜 모든 로컬 AI 모델이 이렇게 나쁠까? 아무도 이런 얘기를 ... (https://www.reddit.com/r/ollama/comments/1idqxto/why_are_all_local_ai_models_so_bad_no_one_talks/?tl=ko)
+[10] peekaboolabs.ai - 로컬 LLM 실행도구, Ollama와 LM Studio 완벽 비교 분석 (2025 ... (https://peekaboolabs.ai/blog/ollama-lm-studio-comparison)
