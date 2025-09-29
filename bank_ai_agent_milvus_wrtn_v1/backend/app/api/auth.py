@@ -38,7 +38,8 @@ async def google_callback(request: Request):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="인증 코드를 받지 못했습니다.")
 
     # 1. Access Token 요청
-    token_url = "https://oauth2.googleapis.com/token"
+    token_url = "http://localhost:3000/auth?access_token"
+    #token_url = "https://oauth2.googleapis.com/token"
     token_data = {
         "code": code,
         "client_id": settings.GOOGLE_CLIENT_ID,
